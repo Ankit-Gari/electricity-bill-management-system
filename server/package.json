@@ -2,7 +2,9 @@
   "name": "electricity-bill-backend",
   "version": "1.0.0",
   "scripts": {
-    "start": "node index.js"
+    "start": "node index.js",
+    "dev": "node --watch index.js",
+    "seed:passwords": "node scripts/resetPasswords.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.2",
