@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Users, FileText, AlertCircle } from "lucide-react"
-import { API_BASE_URL } from "@/lib/api"
+import { Users, FileText, AlertCircle, IndianRupee, TrendingUp } from "lucide-react"
+import { apiFetch } from "@/lib/api"
 
 interface DashboardData {
   totalCustomers: number
@@ -23,29 +23,40 @@ interface DashboardData {
   }[]
 }
 
+interface StatsData {
+  totalRevenue: string
+  totalBills: string
+  paidBills: string
+  unpaidBills: string
+  topCustomers: { name: string; total: string }[]
+}
+
 export default function AdminDashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null)
+  const [stats, setStats] = useState<StatsData | null>(null)
 
   useEffect(() => {
-    const token = localStorage.getItem("token")
-
-    fetch(`${API_BASE_URL}/api/admin/dashboard`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    })
-      .then(res => res.json())
+    apiFetch("/api/admin/dashboard")
       .then(json => setData(json.data))
       .catch(err => console.error("Error loading dashboard data:", err))
+
+    apiFetch("/api/admin/stats")
+      .then(json => setStats(json.data))
+      .catch(err => console.error("Error loading stats:", err))
   }, [])
 
   if (!data) return <div className="p-4">Loading...</div>
+
+  const paidBills = stats ? Number(stats.paidBills) : 0
+  const totalBills = stats ? Number(stats.totalBills) : 0
+  const collectionRate = totalBills ? Math.round((paidBills / totalBills) * 100) : 0
+  const maxTotal = stats?.topCustomers.length ? Number(stats.topCustomers[0].total) : 0
 
   return (
     <div className="space-y-6">
       <h2 className="text-3xl font-bold tracking-tight">Admin Dashboard</h2>
 
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium">Total Customers</CardTitle>
@@ -53,6 +64,23 @@ export default function AdminDashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{data.totalCustomers}</div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
+            <IndianRupee className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {stats ? `₹${Number(stats.totalRevenue).toLocaleString("en-IN")}` : "—"}
+            </div>
+            {stats && (
+              <p className="text-xs text-muted-foreground">
+                {stats.paidBills} of {stats.totalBills} bills paid ({collectionRate}%)
+              </p>
+            )}
           </CardContent>
         </Card>
 
@@ -77,7 +105,7 @@ export default function AdminDashboardPage() {
         </Card>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid gap-4 md:grid-cols-3">
         <Card>
           <CardHeader>
             <CardTitle>Recent Bills</CardTitle>
@@ -113,6 +141,37 @@ export default function AdminDashboardPage() {
                 </div>
               </div>
             ))}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <TrendingUp className="h-4 w-4" />
+              Top Customers by Revenue
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {!stats ? (
+              <p className="text-sm text-muted-foreground">Loading...</p>
+            ) : (
+              stats.topCustomers.map((customer, index) => (
+                <div key={index} className="space-y-1">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="font-medium">{customer.name}</span>
+                    <span className="text-muted-foreground">
+                      ₹{Number(customer.total).toLocaleString("en-IN")}
+                    </span>
+                  </div>
+                  <div className="h-2 rounded-full bg-gray-100">
+                    <div
+                      className="h-2 rounded-full bg-gray-900"
+                      style={{ width: `${maxTotal ? (Number(customer.total) / maxTotal) * 100 : 0}%` }}
+                    />
+                  </div>
+                </div>
+              ))
+            )}
           </CardContent>
         </Card>
       </div>
