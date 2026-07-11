@@ -9,7 +9,6 @@ const inter = Inter({ subsets: ["latin"] })
 export const metadata: Metadata = {
   title: "Electricity Bill Management System",
   description: "Manage electricity bills efficiently",
-    generator: 'v0.dev'
 }
 
 
