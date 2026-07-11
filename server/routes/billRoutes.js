@@ -2,47 +2,32 @@ const express = require("express");
 const {
   getAllBills,
   getUserBills,
-  addBill,
+  payBill,
   deleteBill,
   getPaidBills,
+  getUserPaidBills,
 } = require("../controllers/billController");
 const verifyToken = require("../middleware/authMiddleware");
-const db = require("../config/db");
+const { isAdmin } = require("../middleware/authMiddleware");
 
 const router = express.Router();
 
-// GET /api/bills - All bills
-router.get("/", getAllBills);
+// GET /api/bills - All bills (admin)
+router.get("/", verifyToken, isAdmin, getAllBills);
 
-// ✅ New Route for Paid Bills
-router.get("/paid", verifyToken, getPaidBills);
+// GET /api/bills/paid - All payments (admin)
+router.get("/paid", verifyToken, isAdmin, getPaidBills);
 
-// GET /api/bills/user - User's own bills
+// GET /api/bills/paid/user - Logged-in user's payment history
+router.get("/paid/user", verifyToken, getUserPaidBills);
+
+// GET /api/bills/user - Logged-in user's bills
 router.get("/user", verifyToken, getUserBills);
 
-// POST /api/bills - Add a bill
-router.post("/", verifyToken, addBill);
+// POST /api/bills/pay - Pay a bill
+router.post("/pay", verifyToken, payBill);
 
-// POST /api/bills/pay - Mark bill as paid
-router.post("/pay", verifyToken, async (req, res) => {
-  const { bill_id, amount, name } = req.body;
-  const { id } = req.user;
-
-  try {
-    await db.query(
-      "INSERT INTO bills_paid (c_id, name, bill_amt, bill_paid_date) VALUES (?, ?, ?, NOW())",
-      [id, name, amount]
-    );
-    await db.query("DELETE FROM bills WHERE bill_id = ?", [bill_id]);
-
-    res.status(200).json({ success: true, message: "Bill paid successfully" });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ success: false, message: "Payment failed" });
-  }
-});
-
-// DELETE /api/bills/:billId - Delete bill
-router.delete("/:billId", verifyToken, deleteBill);
+// DELETE /api/bills/:billId - Delete a bill (admin)
+router.delete("/:billId", verifyToken, isAdmin, deleteBill);
 
 module.exports = router;

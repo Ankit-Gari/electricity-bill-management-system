@@ -2,55 +2,60 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { apiFetch } from "@/lib/api"
+
+const RATE_PER_UNIT = 8 // ₹ per unit
+
+interface Customer {
+  c_id: number
+  name: string | null
+}
 
 export default function GenerateBillPage() {
-  const [formData, setFormData] = useState({
-    connectionId: "",
-    customerName: "",
-    unitsConsumed: "",
-    month: "",
-    year: new Date().getFullYear().toString(),
-  })
+  const [customers, setCustomers] = useState<Customer[]>([])
+  const [customerId, setCustomerId] = useState("")
+  const [unitsConsumed, setUnitsConsumed] = useState("")
+  const [dueDate, setDueDate] = useState("")
+  const [status, setStatus] = useState<{ type: "success" | "error"; text: string } | null>(null)
+  const [submitting, setSubmitting] = useState(false)
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target
-    setFormData((prev) => ({ ...prev, [name]: value }))
-  }
+  useEffect(() => {
+    apiFetch("/api/admin/users")
+      .then((json) => setCustomers(json.data))
+      .catch((err) => setStatus({ type: "error", text: err.message }))
+  }, [])
 
-  const handleSelectChange = (name: string, value: string) => {
-    setFormData((prev) => ({ ...prev, [name]: value }))
-  }
+  const selectedCustomer = customers.find((c) => String(c.c_id) === customerId)
+  const amount = unitsConsumed ? Number(unitsConsumed) * RATE_PER_UNIT : 0
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    alert("Bill generated successfully!")
-    // Reset form
-    setFormData({
-      connectionId: "",
-      customerName: "",
-      unitsConsumed: "",
-      month: "",
-      year: new Date().getFullYear().toString(),
-    })
-  }
+    setStatus(null)
+    setSubmitting(true)
 
-  // Simulate fetching customer details when connection ID is entered
-  const handleConnectionIdBlur = () => {
-    if (formData.connectionId) {
-      // In a real app, this would be an API call
-      if (formData.connectionId === "CID10045") {
-        setFormData((prev) => ({ ...prev, customerName: "John Smith" }))
-      } else if (formData.connectionId === "CID10046") {
-        setFormData((prev) => ({ ...prev, customerName: "Sarah Johnson" }))
-      } else {
-        setFormData((prev) => ({ ...prev, customerName: "Customer Not Found" }))
-      }
+    try {
+      await apiFetch("/api/admin/bills", {
+        method: "POST",
+        body: JSON.stringify({
+          c_id: Number(customerId),
+          amount,
+          due_date: dueDate,
+        }),
+      })
+      setStatus({ type: "success", text: "Bill generated successfully!" })
+      setCustomerId("")
+      setUnitsConsumed("")
+      setDueDate("")
+    } catch (err: any) {
+      setStatus({ type: "error", text: err.message })
+    } finally {
+      setSubmitting(false)
     }
   }
 
@@ -61,88 +66,67 @@ export default function GenerateBillPage() {
       <Card className="max-w-2xl mx-auto">
         <CardHeader>
           <CardTitle>New Electricity Bill</CardTitle>
-          <CardDescription>Enter customer details and consumption to generate a new bill</CardDescription>
+          <CardDescription>Select a customer and enter consumption to generate a new bill</CardDescription>
         </CardHeader>
         <form onSubmit={handleSubmit}>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="connectionId">Connection ID</Label>
-                <Input
-                  id="connectionId"
-                  name="connectionId"
-                  placeholder="e.g. CID10045"
-                  value={formData.connectionId}
-                  onChange={handleChange}
-                  onBlur={handleConnectionIdBlur}
-                  required
-                />
+                <Label htmlFor="customer">Customer</Label>
+                <Select value={customerId} onValueChange={setCustomerId} required>
+                  <SelectTrigger id="customer">
+                    <SelectValue placeholder="Select customer" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {customers.map((c) => (
+                      <SelectItem key={c.c_id} value={String(c.c_id)}>
+                        CID{c.c_id} — {c.name || "Unknown"}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="customerName">Customer Name</Label>
-                <Input
-                  id="customerName"
-                  name="customerName"
-                  value={formData.customerName}
-                  readOnly
-                  className="bg-gray-50"
-                />
+                <Input id="customerName" value={selectedCustomer?.name || ""} readOnly className="bg-gray-50" />
               </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="unitsConsumed">Units Consumed</Label>
-              <Input
-                id="unitsConsumed"
-                name="unitsConsumed"
-                type="number"
-                placeholder="e.g. 250"
-                value={formData.unitsConsumed}
-                onChange={handleChange}
-                required
-              />
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="month">Month</Label>
-                <Select value={formData.month} onValueChange={(value) => handleSelectChange("month", value)}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select month" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="January">January</SelectItem>
-                    <SelectItem value="February">February</SelectItem>
-                    <SelectItem value="March">March</SelectItem>
-                    <SelectItem value="April">April</SelectItem>
-                    <SelectItem value="May">May</SelectItem>
-                    <SelectItem value="June">June</SelectItem>
-                    <SelectItem value="July">July</SelectItem>
-                    <SelectItem value="August">August</SelectItem>
-                    <SelectItem value="September">September</SelectItem>
-                    <SelectItem value="October">October</SelectItem>
-                    <SelectItem value="November">November</SelectItem>
-                    <SelectItem value="December">December</SelectItem>
-                  </SelectContent>
-                </Select>
+                <Label htmlFor="unitsConsumed">Units Consumed</Label>
+                <Input
+                  id="unitsConsumed"
+                  type="number"
+                  min="1"
+                  placeholder="e.g. 250"
+                  value={unitsConsumed}
+                  onChange={(e) => setUnitsConsumed(e.target.value)}
+                  required
+                />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="year">Year</Label>
-                <Select value={formData.year} onValueChange={(value) => handleSelectChange("year", value)}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select year" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="2024">2024</SelectItem>
-                    <SelectItem value="2023">2023</SelectItem>
-                  </SelectContent>
-                </Select>
+                <Label htmlFor="dueDate">Due Date</Label>
+                <Input id="dueDate" type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} required />
               </div>
             </div>
+
+            <div className="rounded-md bg-gray-50 p-4 flex justify-between">
+              <span className="text-sm text-muted-foreground">
+                Bill amount ({unitsConsumed || 0} units × ₹{RATE_PER_UNIT}/unit)
+              </span>
+              <span className="font-medium">₹{amount.toFixed(2)}</span>
+            </div>
+
+            {status && (
+              <p className={`text-sm font-medium ${status.type === "success" ? "text-green-600" : "text-red-500"}`}>
+                {status.text}
+              </p>
+            )}
           </CardContent>
           <CardFooter>
-            <Button type="submit" className="w-full">
-              Generate Bill
+            <Button type="submit" className="w-full" disabled={submitting || !customerId}>
+              {submitting ? "Generating..." : "Generate Bill"}
             </Button>
           </CardFooter>
         </form>

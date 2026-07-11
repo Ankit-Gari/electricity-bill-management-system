@@ -8,23 +8,29 @@ const {
   getAdminDashboardData,
   getAllUsers,
   getAdminMessages,
+  updateMessageStatus,
+  replyToMessage,
+  createBill,
   deleteUser,
-  getAdminStats // ✅ Import admin stats controller
+  getAdminStats,
 } = require("../controllers/adminController");
 
-// 🧠 Admin Dashboard Summary
+// Dashboard summary
 router.get("/dashboard", verifyToken, isAdmin, getAdminDashboardData);
 
-// 👥 Get all registered users
+// Customers
 router.get("/users", verifyToken, isAdmin, getAllUsers);
-
-// 📩 Get all inbox messages
-router.get("/messages", verifyToken, isAdmin, getAdminMessages);
-
-// ❌ Delete a user by ID
 router.delete("/user/:id", verifyToken, isAdmin, deleteUser);
 
-// 📊 Admin Stats Route
-router.get("/stats", verifyToken, isAdmin, getAdminStats); // ✅ Route added
+// Bills
+router.post("/bills", verifyToken, isAdmin, createBill);
+
+// Inbox / complaints
+router.get("/messages", verifyToken, isAdmin, getAdminMessages);
+router.patch("/messages/:id", verifyToken, isAdmin, updateMessageStatus);
+router.post("/messages/:id/reply", verifyToken, isAdmin, replyToMessage);
+
+// Stats
+router.get("/stats", verifyToken, isAdmin, getAdminStats);
 
 module.exports = router;

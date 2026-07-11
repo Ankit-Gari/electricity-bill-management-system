@@ -1,99 +1,81 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Textarea } from "@/components/ui/textarea"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { apiFetch } from "@/lib/api"
 
-// Sample data
-const initialComplaints = [
-  {
-    id: 1,
-    from: "Emily Davis",
-    connectionId: "CID10048",
-    subject: "Incorrect Meter Reading",
-    message:
-      "The meter reading on my latest bill seems incorrect. It shows much higher consumption than usual. Please investigate.",
-    date: "2024-04-15",
-    status: "Pending",
-  },
-  {
-    id: 2,
-    from: "Robert Wilson",
-    connectionId: "CID10049",
-    subject: "Bill Amount Dispute",
-    message:
-      "I believe there's an error in my bill calculation. The amount is significantly higher than previous months despite similar usage.",
-    date: "2024-04-14",
-    status: "Pending",
-  },
-  {
-    id: 3,
-    from: "Jennifer Taylor",
-    connectionId: "CID10050",
-    subject: "Power Outage",
-    message:
-      "We've been experiencing frequent power outages in our area for the past week. Please look into this issue.",
-    date: "2024-04-12",
-    status: "Resolved",
-  },
-  {
-    id: 4,
-    from: "David Miller",
-    connectionId: "CID10051",
-    subject: "Connection Issue",
-    message:
-      "After the recent maintenance work, my power connection has been unstable. Please send a technician to check.",
-    date: "2024-04-10",
-    status: "In Progress",
-  },
-]
+interface Complaint {
+  id: number
+  c_id: number
+  name: string | null
+  email: string | null
+  subject: string | null
+  message: string
+  status: "pending" | "resolved"
+  replied: number
+  timestamp: string
+}
 
 export default function ComplaintsPage() {
-  const [complaints, setComplaints] = useState(initialComplaints)
-  const [selectedComplaint, setSelectedComplaint] = useState<(typeof initialComplaints)[0] | null>(null)
+  const [complaints, setComplaints] = useState<Complaint[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState("")
+  const [selectedComplaint, setSelectedComplaint] = useState<Complaint | null>(null)
   const [responseText, setResponseText] = useState("")
   const [activeTab, setActiveTab] = useState("all")
-  const [statusFilter, setStatusFilter] = useState("all")
+
+  useEffect(() => {
+    apiFetch("/api/admin/messages")
+      .then((json) => setComplaints(json.data))
+      .catch((err) => setError(err.message))
+      .finally(() => setLoading(false))
+  }, [])
 
   const filteredComplaints = complaints.filter((complaint) => {
-    const matchesTab =
-      activeTab === "all" ||
-      (activeTab === "pending" && complaint.status === "Pending") ||
-      (activeTab === "resolved" && complaint.status === "Resolved")
-
-    const matchesStatus = statusFilter === "all" || complaint.status === statusFilter
-
-    return matchesTab && matchesStatus
+    if (activeTab === "pending") return complaint.status === "pending"
+    if (activeTab === "resolved") return complaint.status === "resolved"
+    return true
   })
 
-  const handleComplaintClick = (complaint: (typeof initialComplaints)[0]) => {
-    setSelectedComplaint(complaint)
-    setResponseText("")
-  }
-
-  const handleUpdateStatus = (status: string) => {
+  const handleUpdateStatus = async (status: "pending" | "resolved") => {
     if (!selectedComplaint) return
-
-    setComplaints(complaints.map((c) => (c.id === selectedComplaint.id ? { ...c, status } : c)))
-
-    setSelectedComplaint({
-      ...selectedComplaint,
-      status,
-    })
+    try {
+      await apiFetch(`/api/admin/messages/${selectedComplaint.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ status }),
+      })
+      setComplaints(complaints.map((c) => (c.id === selectedComplaint.id ? { ...c, status } : c)))
+      setSelectedComplaint({ ...selectedComplaint, status })
+    } catch (err: any) {
+      alert(err.message)
+    }
   }
 
-  const handleSendResponse = () => {
+  const handleSendResponse = async () => {
     if (!selectedComplaint || !responseText.trim()) return
-
-    // Update status to resolved
-    handleUpdateStatus("Resolved")
-
-    alert("Response sent successfully!")
-    setResponseText("")
+    try {
+      await apiFetch(`/api/admin/messages/${selectedComplaint.id}/reply`, {
+        method: "POST",
+        body: JSON.stringify({ reply: responseText }),
+      })
+      setComplaints(
+        complaints.map((c) =>
+          c.id === selectedComplaint.id ? { ...c, status: "resolved", replied: 1 } : c,
+        ),
+      )
+      setSelectedComplaint({ ...selectedComplaint, status: "resolved", replied: 1 })
+      setResponseText("")
+    } catch (err: any) {
+      alert(err.message)
+    }
   }
+
+  if (loading) return <div className="p-4">Loading...</div>
+  if (error) return <div className="p-4 text-red-500">{error}</div>
 
   return (
     <div className="space-y-6">
@@ -103,15 +85,13 @@ export default function ComplaintsPage() {
         <div className="col-span-1">
           <Card>
             <CardHeader className="px-4 py-3">
-              <div className="flex justify-between items-center">
-                <Tabs defaultValue="all" value={activeTab} onValueChange={setActiveTab}>
-                  <TabsList className="grid w-full grid-cols-3">
-                    <TabsTrigger value="all">All</TabsTrigger>
-                    <TabsTrigger value="pending">Pending</TabsTrigger>
-                    <TabsTrigger value="resolved">Resolved</TabsTrigger>
-                  </TabsList>
-                </Tabs>
-              </div>
+              <Tabs defaultValue="all" value={activeTab} onValueChange={setActiveTab}>
+                <TabsList className="grid w-full grid-cols-3">
+                  <TabsTrigger value="all">All</TabsTrigger>
+                  <TabsTrigger value="pending">Pending</TabsTrigger>
+                  <TabsTrigger value="resolved">Resolved</TabsTrigger>
+                </TabsList>
+              </Tabs>
             </CardHeader>
             <CardContent className="p-0">
               <div className="divide-y">
@@ -122,22 +102,25 @@ export default function ComplaintsPage() {
                     <div
                       key={complaint.id}
                       className={`p-4 cursor-pointer hover:bg-gray-50 ${selectedComplaint?.id === complaint.id ? "bg-gray-50" : ""}`}
-                      onClick={() => handleComplaintClick(complaint)}
+                      onClick={() => {
+                        setSelectedComplaint(complaint)
+                        setResponseText("")
+                      }}
                     >
                       <div className="flex justify-between">
-                        <span className="text-sm font-medium">{complaint.from}</span>
-                        <span className="text-xs text-muted-foreground">{complaint.date}</span>
+                        <span className="text-sm font-medium">{complaint.name || "Unknown"}</span>
+                        <span className="text-xs text-muted-foreground">
+                          {new Date(complaint.timestamp).toLocaleDateString()}
+                        </span>
                       </div>
-                      <div className="text-sm truncate">{complaint.subject}</div>
+                      <div className="text-sm truncate">{complaint.subject || "No subject"}</div>
                       <div className="text-xs text-muted-foreground truncate">{complaint.message}</div>
                       <div className="mt-1">
                         <span
                           className={`px-2 py-0.5 rounded-full text-xs ${
-                            complaint.status === "Pending"
+                            complaint.status === "pending"
                               ? "bg-orange-100 text-orange-800"
-                              : complaint.status === "In Progress"
-                                ? "bg-blue-100 text-blue-800"
-                                : "bg-green-100 text-green-800"
+                              : "bg-green-100 text-green-800"
                           }`}
                         >
                           {complaint.status}
@@ -155,9 +138,10 @@ export default function ComplaintsPage() {
           {selectedComplaint ? (
             <Card>
               <CardHeader>
-                <CardTitle>{selectedComplaint.subject}</CardTitle>
+                <CardTitle>{selectedComplaint.subject || "No subject"}</CardTitle>
                 <CardDescription>
-                  From: {selectedComplaint.from} ({selectedComplaint.connectionId}) • {selectedComplaint.date}
+                  From: {selectedComplaint.name || "Unknown"} (CID{selectedComplaint.c_id}) •{" "}
+                  {new Date(selectedComplaint.timestamp).toLocaleString()}
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -166,14 +150,16 @@ export default function ComplaintsPage() {
 
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-medium">Status:</span>
-                    <Select value={selectedComplaint.status} onValueChange={handleUpdateStatus}>
+                    <Select
+                      value={selectedComplaint.status}
+                      onValueChange={(value) => handleUpdateStatus(value as "pending" | "resolved")}
+                    >
                       <SelectTrigger className="w-32">
                         <SelectValue placeholder="Status" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="Pending">Pending</SelectItem>
-                        <SelectItem value="In Progress">In Progress</SelectItem>
-                        <SelectItem value="Resolved">Resolved</SelectItem>
+                        <SelectItem value="pending">Pending</SelectItem>
+                        <SelectItem value="resolved">Resolved</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>

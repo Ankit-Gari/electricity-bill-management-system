@@ -1,114 +1,124 @@
+"use client"
+
+import { useEffect, useState } from "react"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Download, CreditCard } from "lucide-react"
+import { CreditCard } from "lucide-react"
 import Link from "next/link"
+import { apiFetch } from "@/lib/api"
+
+interface Bill {
+  bill_id: number
+  c_id: number
+  amt_topay: string
+  due_date: string
+  status: "paid" | "unpaid"
+}
 
 export default function ViewBillPage() {
+  const [bills, setBills] = useState<Bill[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState("")
+
+  useEffect(() => {
+    apiFetch("/api/bills/user")
+      .then((json) => setBills(json.data))
+      .catch((err) => setError(err.message))
+      .finally(() => setLoading(false))
+  }, [])
+
+  if (loading) return <div className="p-4">Loading...</div>
+  if (error) return <div className="p-4 text-red-500">{error}</div>
+
+  const currentBill = bills.find((b) => b.status === "unpaid")
+
   return (
     <div className="space-y-6">
-      <h2 className="text-3xl font-bold tracking-tight">Current Bill</h2>
+      <h2 className="text-3xl font-bold tracking-tight">My Bills</h2>
+
+      {currentBill ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Current Bill</CardTitle>
+            <CardDescription>Bill ID: BILL-{currentBill.bill_id}</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-3 gap-4">
+              <div>
+                <p className="text-sm text-muted-foreground">Amount Due</p>
+                <p className="text-2xl font-bold">₹{Number(currentBill.amt_topay).toFixed(2)}</p>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Due Date</p>
+                <p className="text-2xl font-bold">{new Date(currentBill.due_date).toLocaleDateString()}</p>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Status</p>
+                <p className="text-2xl font-bold text-orange-500">Unpaid</p>
+              </div>
+            </div>
+          </CardContent>
+          <CardFooter>
+            <Button asChild className="w-full">
+              <Link href="/customer/pay-bill">
+                <CreditCard className="mr-2 h-4 w-4" />
+                Pay Now
+              </Link>
+            </Button>
+          </CardFooter>
+        </Card>
+      ) : (
+        <Card>
+          <CardContent className="py-8 text-center text-muted-foreground">
+            You have no unpaid bills. 🎉
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>
-          <div className="flex justify-between items-center">
-            <div>
-              <CardTitle>Electricity Bill - April 2024</CardTitle>
-              <CardDescription>Bill ID: BILL-10045-APR24</CardDescription>
-            </div>
-            <Button variant="outline" size="icon">
-              <Download className="h-4 w-4" />
-            </Button>
-          </div>
+          <CardTitle>All Bills</CardTitle>
+          <CardDescription>Your complete billing history</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="space-y-6">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <h3 className="text-sm font-medium text-muted-foreground">Customer Details</h3>
-                <div className="mt-1">
-                  <p className="font-medium">John Smith</p>
-                  <p>123 Main Street</p>
-                  <p>Anytown, ST 12345</p>
-                  <p>Connection ID: CID10045</p>
-                </div>
-              </div>
-              <div>
-                <h3 className="text-sm font-medium text-muted-foreground">Bill Summary</h3>
-                <div className="mt-1">
-                  <p>Bill Date: April 5, 2024</p>
-                  <p>Due Date: May 15, 2024</p>
-                  <p>Billing Period: Mar 5 - Apr 4, 2024</p>
-                  <p className="font-medium text-orange-500">Status: Unpaid</p>
-                </div>
-              </div>
-            </div>
-
-            <div>
-              <h3 className="text-sm font-medium text-muted-foreground mb-2">Consumption Details</h3>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Description</TableHead>
-                    <TableHead className="text-right">Value</TableHead>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Bill ID</TableHead>
+                <TableHead>Amount</TableHead>
+                <TableHead>Due Date</TableHead>
+                <TableHead>Status</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {bills.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={4} className="text-center">
+                    No bills found
+                  </TableCell>
+                </TableRow>
+              ) : (
+                bills.map((bill) => (
+                  <TableRow key={bill.bill_id}>
+                    <TableCell className="font-medium">BILL-{bill.bill_id}</TableCell>
+                    <TableCell>₹{Number(bill.amt_topay).toFixed(2)}</TableCell>
+                    <TableCell>{new Date(bill.due_date).toLocaleDateString()}</TableCell>
+                    <TableCell>
+                      <span
+                        className={`px-2 py-1 rounded-full text-xs ${
+                          bill.status === "paid" ? "bg-green-100 text-green-800" : "bg-orange-100 text-orange-800"
+                        }`}
+                      >
+                        {bill.status === "paid" ? "Paid" : "Unpaid"}
+                      </span>
+                    </TableCell>
                   </TableRow>
-                </TableHeader>
-                <TableBody>
-                  <TableRow>
-                    <TableCell>Previous Reading</TableCell>
-                    <TableCell className="text-right">5240 units</TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableCell>Current Reading</TableCell>
-                    <TableCell className="text-right">5490 units</TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableCell className="font-medium">Total Consumption</TableCell>
-                    <TableCell className="text-right font-medium">250 units</TableCell>
-                  </TableRow>
-                </TableBody>
-              </Table>
-            </div>
-
-            <div>
-              <h3 className="text-sm font-medium text-muted-foreground mb-2">Charges</h3>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Description</TableHead>
-                    <TableHead className="text-right">Amount</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  <TableRow>
-                    <TableCell>Energy Charges (250 units @ $0.42)</TableCell>
-                    <TableCell className="text-right">$105.00</TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableCell>Fixed Charges</TableCell>
-                    <TableCell className="text-right">$10.00</TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableCell>Tax (8%)</TableCell>
-                    <TableCell className="text-right">$9.50</TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableCell className="font-medium">Total Amount</TableCell>
-                    <TableCell className="text-right font-medium">$124.50</TableCell>
-                  </TableRow>
-                </TableBody>
-              </Table>
-            </div>
-          </div>
+                ))
+              )}
+            </TableBody>
+          </Table>
         </CardContent>
-        <CardFooter>
-          <Button asChild className="w-full">
-            <Link href="/customer/pay-bill">
-              <CreditCard className="mr-2 h-4 w-4" />
-              Pay Now
-            </Link>
-          </Button>
-        </CardFooter>
       </Card>
     </div>
   )

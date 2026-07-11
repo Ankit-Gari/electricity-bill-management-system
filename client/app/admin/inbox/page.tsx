@@ -1,89 +1,64 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Textarea } from "@/components/ui/textarea"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { apiFetch } from "@/lib/api"
 
-// Sample data
-const initialMessages = [
-  {
-    id: 1,
-    from: "John Smith",
-    connectionId: "CID10045",
-    subject: "Bill Clarification",
-    message:
-      "I have a question about my recent bill. The amount seems higher than usual. Could you please check if there was a mistake in the meter reading?",
-    date: "2024-04-15",
-    read: false,
-    replied: false,
-  },
-  {
-    id: 2,
-    from: "Sarah Johnson",
-    connectionId: "CID10046",
-    subject: "Payment Confirmation",
-    message:
-      "I made a payment yesterday but haven't received a confirmation. Could you please verify if the payment was received?",
-    date: "2024-04-14",
-    read: true,
-    replied: false,
-  },
-  {
-    id: 3,
-    from: "Michael Brown",
-    connectionId: "CID10047",
-    subject: "Address Change",
-    message:
-      "I'm moving to a new address next month. What's the process to transfer my connection to the new location?",
-    date: "2024-04-12",
-    read: true,
-    replied: true,
-  },
-  {
-    id: 4,
-    from: "Emily Davis",
-    connectionId: "CID10048",
-    subject: "Meter Reading Issue",
-    message: "The meter reader didn't visit this month. How will my bill be calculated?",
-    date: "2024-04-10",
-    read: true,
-    replied: true,
-  },
-]
+interface Message {
+  id: number
+  c_id: number
+  name: string | null
+  email: string | null
+  subject: string | null
+  message: string
+  status: "pending" | "resolved"
+  replied: number
+  timestamp: string
+}
 
 export default function InboxPage() {
-  const [messages, setMessages] = useState(initialMessages)
-  const [selectedMessage, setSelectedMessage] = useState<(typeof initialMessages)[0] | null>(null)
+  const [messages, setMessages] = useState<Message[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState("")
+  const [selectedMessage, setSelectedMessage] = useState<Message | null>(null)
   const [replyText, setReplyText] = useState("")
   const [activeTab, setActiveTab] = useState("all")
 
+  useEffect(() => {
+    apiFetch("/api/admin/messages")
+      .then((json) => setMessages(json.data))
+      .catch((err) => setError(err.message))
+      .finally(() => setLoading(false))
+  }, [])
+
   const filteredMessages = messages.filter((message) => {
-    if (activeTab === "all") return true
-    if (activeTab === "unread") return !message.read
-    if (activeTab === "replied") return message.replied
+    if (activeTab === "pending") return !message.replied
+    if (activeTab === "replied") return !!message.replied
     return true
   })
 
-  const handleMessageClick = (message: (typeof initialMessages)[0]) => {
-    // Mark as read when opened
-    if (!message.read) {
-      setMessages(messages.map((m) => (m.id === message.id ? { ...m, read: true } : m)))
-    }
-    setSelectedMessage(message)
-    setReplyText("")
-  }
-
-  const handleSendReply = () => {
+  const handleSendReply = async () => {
     if (!selectedMessage || !replyText.trim()) return
-
-    // Mark as replied
-    setMessages(messages.map((m) => (m.id === selectedMessage.id ? { ...m, replied: true } : m)))
-
-    alert("Reply sent successfully!")
-    setReplyText("")
+    try {
+      await apiFetch(`/api/admin/messages/${selectedMessage.id}/reply`, {
+        method: "POST",
+        body: JSON.stringify({ reply: replyText }),
+      })
+      setMessages(
+        messages.map((m) => (m.id === selectedMessage.id ? { ...m, replied: 1, status: "resolved" } : m)),
+      )
+      setSelectedMessage({ ...selectedMessage, replied: 1, status: "resolved" })
+      setReplyText("")
+    } catch (err: any) {
+      alert(err.message)
+    }
   }
+
+  if (loading) return <div className="p-4">Loading...</div>
+  if (error) return <div className="p-4 text-red-500">{error}</div>
 
   return (
     <div className="space-y-6">
@@ -96,7 +71,7 @@ export default function InboxPage() {
               <Tabs defaultValue="all" value={activeTab} onValueChange={setActiveTab}>
                 <TabsList className="grid w-full grid-cols-3">
                   <TabsTrigger value="all">All</TabsTrigger>
-                  <TabsTrigger value="unread">Unread</TabsTrigger>
+                  <TabsTrigger value="pending">Pending</TabsTrigger>
                   <TabsTrigger value="replied">Replied</TabsTrigger>
                 </TabsList>
               </Tabs>
@@ -109,20 +84,25 @@ export default function InboxPage() {
                   filteredMessages.map((message) => (
                     <div
                       key={message.id}
-                      className={`p-4 cursor-pointer hover:bg-gray-50 ${selectedMessage?.id === message.id ? "bg-gray-50" : ""} ${!message.read ? "font-medium" : ""}`}
-                      onClick={() => handleMessageClick(message)}
+                      className={`p-4 cursor-pointer hover:bg-gray-50 ${selectedMessage?.id === message.id ? "bg-gray-50" : ""}`}
+                      onClick={() => {
+                        setSelectedMessage(message)
+                        setReplyText("")
+                      }}
                     >
                       <div className="flex justify-between">
-                        <span className="text-sm font-medium">{message.from}</span>
-                        <span className="text-xs text-muted-foreground">{message.date}</span>
+                        <span className="text-sm font-medium">{message.name || "Unknown"}</span>
+                        <span className="text-xs text-muted-foreground">
+                          {new Date(message.timestamp).toLocaleDateString()}
+                        </span>
                       </div>
-                      <div className="text-sm truncate">{message.subject}</div>
+                      <div className="text-sm truncate">{message.subject || "No subject"}</div>
                       <div className="text-xs text-muted-foreground truncate">{message.message}</div>
                       <div className="flex gap-2 mt-1">
-                        {!message.read && (
-                          <span className="px-2 py-0.5 rounded-full text-xs bg-blue-100 text-blue-800">New</span>
+                        {!message.replied && (
+                          <span className="px-2 py-0.5 rounded-full text-xs bg-blue-100 text-blue-800">Pending</span>
                         )}
-                        {message.replied && (
+                        {!!message.replied && (
                           <span className="px-2 py-0.5 rounded-full text-xs bg-green-100 text-green-800">Replied</span>
                         )}
                       </div>
@@ -138,9 +118,10 @@ export default function InboxPage() {
           {selectedMessage ? (
             <Card>
               <CardHeader>
-                <CardTitle>{selectedMessage.subject}</CardTitle>
+                <CardTitle>{selectedMessage.subject || "No subject"}</CardTitle>
                 <CardDescription>
-                  From: {selectedMessage.from} ({selectedMessage.connectionId}) • {selectedMessage.date}
+                  From: {selectedMessage.name || "Unknown"} (CID{selectedMessage.c_id}) •{" "}
+                  {new Date(selectedMessage.timestamp).toLocaleString()}
                 </CardDescription>
               </CardHeader>
               <CardContent>

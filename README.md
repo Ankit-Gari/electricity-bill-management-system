@@ -91,20 +91,30 @@ npm run dev
 
 ## API Overview
 
-| Method | Endpoint                  | Auth        | Description                          |
-| ------ | ------------------------- | ----------- | ------------------------------------ |
-| POST   | `/api/auth/login`         | —           | Customer login, returns JWT          |
-| POST   | `/api/auth/admin-login`   | —           | Admin login, returns JWT             |
-| GET    | `/api/customer/dashboard` | Customer    | Unpaid bills, complaints, recents    |
-| GET    | `/api/user/profile`       | Customer    | Logged-in user's profile             |
-| GET    | `/api/bills/user`         | Customer    | Bills for the logged-in user         |
-| POST   | `/api/bills/pay`          | Customer    | Pay a bill                           |
-| GET    | `/api/inbox`              | Customer    | Inbox messages                       |
-| POST   | `/api/inbox`              | Customer    | Submit a message/complaint           |
-| GET    | `/api/admin/dashboard`    | Admin       | Totals + recent bills and complaints |
-| GET    | `/api/admin/users`        | Admin       | All registered customers             |
-| GET    | `/api/admin/stats`        | Admin       | Revenue and billing statistics       |
-| DELETE | `/api/admin/user/:id`     | Admin       | Delete a customer                    |
+| Method | Endpoint                        | Auth     | Description                          |
+| ------ | ------------------------------- | -------- | ------------------------------------ |
+| POST   | `/api/auth/login`               | —        | Customer login, returns JWT          |
+| POST   | `/api/auth/admin-login`         | —        | Admin login, returns JWT             |
+| GET    | `/api/customer/dashboard`       | Customer | Unpaid bills, complaints, recents    |
+| GET    | `/api/user/profile`             | Customer | Logged-in user's profile             |
+| POST   | `/api/user/change-password`     | Customer | Change password (bcrypt verified)    |
+| GET    | `/api/bills/user`               | Customer | Bills for the logged-in user         |
+| POST   | `/api/bills/pay`                | Customer | Pay a bill (records payment)         |
+| GET    | `/api/bills/paid/user`          | Customer | Logged-in user's payment history     |
+| GET    | `/api/inbox`                    | Customer | Messages from the admin              |
+| PATCH  | `/api/inbox/:id/read`           | Customer | Mark a message as read               |
+| POST   | `/api/inbox`                    | Customer | Submit a complaint/query             |
+| GET    | `/api/admin/dashboard`          | Admin    | Totals + recent bills and complaints |
+| GET    | `/api/admin/stats`              | Admin    | Revenue and billing statistics       |
+| GET    | `/api/admin/users`              | Admin    | All customers (no password hashes)   |
+| DELETE | `/api/admin/user/:id`           | Admin    | Delete a customer                    |
+| GET    | `/api/bills`                    | Admin    | All bills with customer names        |
+| POST   | `/api/admin/bills`              | Admin    | Generate a bill for a customer       |
+| DELETE | `/api/bills/:billId`            | Admin    | Delete a bill                        |
+| GET    | `/api/bills/paid`               | Admin    | All recorded payments                |
+| GET    | `/api/admin/messages`           | Admin    | All customer complaints/queries      |
+| PATCH  | `/api/admin/messages/:id`       | Admin    | Update complaint status              |
+| POST   | `/api/admin/messages/:id/reply` | Admin    | Reply (delivered to customer inbox)  |
 
 ## Security Notes
 

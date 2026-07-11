@@ -3,78 +3,139 @@ const db = require("../config/db");
 
 // Admin Dashboard Summary
 const getAdminDashboardData = asyncHandler(async (req, res) => {
-  try {
-    console.log("🔁 Dashboard API called");
+  const [users] = await db.query(
+    "SELECT COUNT(*) AS totalCustomers FROM user_login"
+  );
 
-    const [users] = await db.query(
-      "SELECT COUNT(*) AS totalCustomers FROM user_login"
-    );
-    console.log("✅ Total Customers:", users[0]);
+  const [bills] = await db.query(
+    "SELECT COUNT(*) AS unpaidBills FROM bills WHERE status = 'unpaid'"
+  );
 
-    const [bills] = await db.query(
-      "SELECT COUNT(*) AS unpaidBills FROM bills WHERE status = 'unpaid'"
-    );
-    console.log("✅ Unpaid Bills:", bills[0]);
+  const [complaints] = await db.query(
+    "SELECT COUNT(*) AS activeComplaints FROM inbox_admin WHERE status = 'pending'"
+  );
 
-    const [complaints] = await db.query(
-      "SELECT COUNT(*) AS activeComplaints FROM inbox_admin WHERE status = 'pending'"
-    );
-    console.log("✅ Active Complaints:", complaints[0]);
+  const [recentBills] = await db.query(`
+    SELECT b.amt_topay AS amount, b.due_date, b.c_id, cd.name AS customer_name
+    FROM bills b
+    JOIN customer_details cd ON b.c_id = cd.c_id
+    ORDER BY b.due_date DESC
+    LIMIT 3
+  `);
 
-    const [recentBills] = await db.query(`
-      SELECT b.amt_topay AS amount, b.due_date, b.c_id, cd.name AS customer_name
-      FROM bills b
-      JOIN customer_details cd ON b.c_id = cd.c_id
-      ORDER BY b.due_date DESC
-      LIMIT 3
-    `);
-    console.log("✅ Recent Bills:", recentBills);
+  const [recentComplaints] = await db.query(`
+    SELECT ia.message AS complaint, ia.status, ia.timestamp, cd.name AS customer_name
+    FROM inbox_admin ia
+    JOIN customer_details cd ON ia.c_id = cd.c_id
+    ORDER BY ia.timestamp DESC
+    LIMIT 3
+  `);
 
-    const [recentComplaints] = await db.query(`
-      SELECT ia.message AS complaint, ia.status, ia.timestamp, cd.name AS customer_name
-      FROM inbox_admin ia
-      JOIN customer_details cd ON ia.c_id = cd.c_id
-      ORDER BY ia.timestamp DESC
-      LIMIT 3
-    `);
-    console.log("✅ Recent Complaints:", recentComplaints);
-
-    res.status(200).json({
-      success: true,
-      data: {
-        totalCustomers: users[0].totalCustomers,
-        unpaidBills: bills[0].unpaidBills,
-        activeComplaints: complaints[0].activeComplaints,
-        recentBills: recentBills.map((b) => ({
-          name: b.customer_name,
-          amount: b.amount,
-          due_date: b.due_date,
-          c_id: b.c_id,
-        })),
-        recentComplaints: recentComplaints.map((c) => ({
-          name: c.customer_name,
-          complaint: c.complaint,
-          status: c.status,
-          timestamp: c.timestamp,
-        })),
-      },
-    });
-  } catch (err) {
-    console.error("❌ Dashboard error:", err);
-    res.status(500).json({ success: false, message: "Internal Server Error" });
-  }
+  res.status(200).json({
+    success: true,
+    data: {
+      totalCustomers: users[0].totalCustomers,
+      unpaidBills: bills[0].unpaidBills,
+      activeComplaints: complaints[0].activeComplaints,
+      recentBills: recentBills.map((b) => ({
+        name: b.customer_name,
+        amount: b.amount,
+        due_date: b.due_date,
+        c_id: b.c_id,
+      })),
+      recentComplaints: recentComplaints.map((c) => ({
+        name: c.customer_name,
+        complaint: c.complaint,
+        status: c.status,
+        timestamp: c.timestamp,
+      })),
+    },
+  });
 });
 
-// Get All Users
+// Get all customers (no password hashes)
 const getAllUsers = asyncHandler(async (req, res) => {
-  const [users] = await db.query("SELECT * FROM user_login");
+  const [users] = await db.query(`
+    SELECT u.c_id, u.name AS username, cd.name, cd.email
+    FROM user_login u
+    LEFT JOIN customer_details cd ON u.c_id = cd.c_id
+    ORDER BY u.c_id
+  `);
   res.status(200).json({ success: true, data: users });
 });
 
 // Get Inbox Messages
 const getAdminMessages = asyncHandler(async (req, res) => {
-  const [messages] = await db.query("SELECT * FROM inbox_admin");
+  const [messages] = await db.query(
+    "SELECT * FROM inbox_admin ORDER BY timestamp DESC"
+  );
   res.status(200).json({ success: true, data: messages });
+});
+
+// Update a message/complaint status
+const updateMessageStatus = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { status } = req.body;
+
+  if (!["pending", "resolved"].includes(status)) {
+    return res.status(400).json({ success: false, message: "Invalid status" });
+  }
+
+  await db.query("UPDATE inbox_admin SET status = ? WHERE id = ?", [status, id]);
+  res.status(200).json({ success: true, message: "Status updated" });
+});
+
+// Reply to a customer message: deliver to the customer's inbox
+const replyToMessage = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { reply } = req.body;
+
+  if (!reply || !reply.trim()) {
+    return res.status(400).json({ success: false, message: "Reply cannot be empty" });
+  }
+
+  const [messages] = await db.query("SELECT * FROM inbox_admin WHERE id = ?", [id]);
+  if (messages.length === 0) {
+    return res.status(404).json({ success: false, message: "Message not found" });
+  }
+
+  const original = messages[0];
+  await db.query(
+    "INSERT INTO inbox_user (c_id, subject, message) VALUES (?, ?, ?)",
+    [original.c_id, `Re: ${original.subject || "your message"}`, reply]
+  );
+  await db.query(
+    "UPDATE inbox_admin SET replied = 1, status = 'resolved' WHERE id = ?",
+    [id]
+  );
+
+  res.status(200).json({ success: true, message: "Reply sent" });
+});
+
+// Create a bill for a customer
+const createBill = asyncHandler(async (req, res) => {
+  const { c_id, amount, due_date } = req.body;
+
+  if (!c_id || !amount || !due_date) {
+    return res
+      .status(400)
+      .json({ success: false, message: "c_id, amount and due_date are required" });
+  }
+
+  const [customer] = await db.query(
+    "SELECT c_id FROM user_login WHERE c_id = ?",
+    [c_id]
+  );
+  if (customer.length === 0) {
+    return res.status(404).json({ success: false, message: "Customer not found" });
+  }
+
+  await db.query(
+    "INSERT INTO bills (c_id, amt_topay, due_date, status) VALUES (?, ?, ?, 'unpaid')",
+    [c_id, amount, due_date]
+  );
+
+  res.status(201).json({ success: true, message: "Bill generated successfully" });
 });
 
 // Delete User
@@ -86,51 +147,49 @@ const deleteUser = asyncHandler(async (req, res) => {
 
 // Admin Stats Dashboard
 const getAdminStats = asyncHandler(async (req, res) => {
-  try {
-    const [[{ totalRevenue }]] = await db.query(
-      `SELECT SUM(bill_amt) AS totalRevenue FROM bills_paid`
-    );
+  const [[{ totalRevenue }]] = await db.query(
+    "SELECT SUM(bill_amt) AS totalRevenue FROM bills_paid"
+  );
 
-    const [[{ totalBills }]] = await db.query(
-      `SELECT COUNT(*) AS totalBills FROM bills`
-    );
+  const [[{ totalBills }]] = await db.query(
+    "SELECT COUNT(*) AS totalBills FROM bills"
+  );
 
-    const [[{ paidBills }]] = await db.query(
-      `SELECT COUNT(*) AS paidBills FROM bills WHERE status = 'paid'`
-    );
+  const [[{ paidBills }]] = await db.query(
+    "SELECT COUNT(*) AS paidBills FROM bills WHERE status = 'paid'"
+  );
 
-    const [[{ unpaidBills }]] = await db.query(
-      `SELECT COUNT(*) AS unpaidBills FROM bills WHERE status = 'unpaid'`
-    );
+  const [[{ unpaidBills }]] = await db.query(
+    "SELECT COUNT(*) AS unpaidBills FROM bills WHERE status = 'unpaid'"
+  );
 
-    const [topCustomers] = await db.query(
-      `SELECT name, SUM(bill_amt) AS total
-       FROM bills_paid
-       GROUP BY name
-       ORDER BY total DESC
-       LIMIT 5`
-    );
+  const [topCustomers] = await db.query(`
+    SELECT name, SUM(bill_amt) AS total
+    FROM bills_paid
+    GROUP BY name
+    ORDER BY total DESC
+    LIMIT 5
+  `);
 
-    res.status(200).json({
-      success: true,
-      data: {
-        totalRevenue,
-        totalBills,
-        paidBills,
-        unpaidBills,
-        topCustomers
-      }
-    });
-  } catch (err) {
-    console.error("❌ Admin Stats Error:", err);
-    res.status(500).json({ success: false, message: "Internal Server Error" });
-  }
+  res.status(200).json({
+    success: true,
+    data: {
+      totalRevenue,
+      totalBills,
+      paidBills,
+      unpaidBills,
+      topCustomers,
+    },
+  });
 });
 
 module.exports = {
   getAdminDashboardData,
   getAllUsers,
   getAdminMessages,
+  updateMessageStatus,
+  replyToMessage,
+  createBill,
   deleteUser,
-  getAdminStats
+  getAdminStats,
 };

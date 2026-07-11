@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useRouter } from "next/navigation"
+import { apiFetch } from "@/lib/api"
 
 export default function SubmitComplaintPage() {
   const router = useRouter()
@@ -18,6 +19,8 @@ export default function SubmitComplaintPage() {
     category: "",
     message: "",
   })
+  const [error, setError] = useState("")
+  const [submitting, setSubmitting] = useState(false)
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
@@ -28,10 +31,24 @@ export default function SubmitComplaintPage() {
     setFormData((prev) => ({ ...prev, [name]: value }))
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    alert("Your complaint has been submitted successfully. We will get back to you soon.")
-    router.push("/customer/dashboard")
+    setError("")
+    setSubmitting(true)
+
+    try {
+      await apiFetch("/api/inbox", {
+        method: "POST",
+        body: JSON.stringify({
+          subject: formData.category ? `[${formData.category}] ${formData.subject}` : formData.subject,
+          message: formData.message,
+        }),
+      })
+      router.push("/customer/dashboard")
+    } catch (err: any) {
+      setError(err.message)
+      setSubmitting(false)
+    }
   }
 
   return (
@@ -87,10 +104,11 @@ export default function SubmitComplaintPage() {
                 required
               />
             </div>
+            {error && <p className="text-sm font-medium text-red-500">{error}</p>}
           </CardContent>
           <CardFooter>
-            <Button type="submit" className="w-full">
-              Submit Complaint
+            <Button type="submit" className="w-full" disabled={submitting}>
+              {submitting ? "Submitting..." : "Submit Complaint"}
             </Button>
           </CardFooter>
         </form>

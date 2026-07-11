@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useRouter } from "next/navigation"
+import { apiFetch } from "@/lib/api"
 
 export default function ChangePasswordPage() {
   const router = useRouter()
@@ -24,7 +25,7 @@ export default function ChangePasswordPage() {
     setError("")
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
     if (formData.newPassword !== formData.confirmPassword) {
@@ -37,8 +38,18 @@ export default function ChangePasswordPage() {
       return
     }
 
-    alert("Password changed successfully!")
-    router.push("/customer/dashboard")
+    try {
+      await apiFetch("/api/user/change-password", {
+        method: "POST",
+        body: JSON.stringify({
+          currentPassword: formData.currentPassword,
+          newPassword: formData.newPassword,
+        }),
+      })
+      router.push("/customer/dashboard")
+    } catch (err: any) {
+      setError(err.message)
+    }
   }
 
   return (
