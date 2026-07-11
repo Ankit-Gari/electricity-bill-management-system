@@ -4,7 +4,7 @@
   "scripts": {
     "start": "node index.js",
     "dev": "node --watch index.js",
-    "seed:passwords": "node scripts/resetPasswords.js"
+    "seed": "node scripts/seedSampleData.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.2",
@@ -13,6 +13,6 @@
     "express": "^5.1.0",
     "express-async-handler": "^1.2.0",
     "jsonwebtoken": "^9.0.3",
-    "mysql2": "^3.14.0"
+    "pg": "^8.22.0"
   }
 }

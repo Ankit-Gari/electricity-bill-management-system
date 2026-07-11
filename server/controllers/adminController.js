@@ -3,19 +3,19 @@ const db = require("../config/db");
 
 // Admin Dashboard Summary
 const getAdminDashboardData = asyncHandler(async (req, res) => {
-  const [users] = await db.query(
-    "SELECT COUNT(*) AS totalCustomers FROM user_login"
+  const { rows: users } = await db.query(
+    "SELECT COUNT(*) AS totalcustomers FROM user_login"
   );
 
-  const [bills] = await db.query(
-    "SELECT COUNT(*) AS unpaidBills FROM bills WHERE status = 'unpaid'"
+  const { rows: bills } = await db.query(
+    "SELECT COUNT(*) AS unpaidbills FROM bills WHERE status = 'unpaid'"
   );
 
-  const [complaints] = await db.query(
-    "SELECT COUNT(*) AS activeComplaints FROM inbox_admin WHERE status = 'pending'"
+  const { rows: complaints } = await db.query(
+    "SELECT COUNT(*) AS activecomplaints FROM inbox_admin WHERE status = 'pending'"
   );
 
-  const [recentBills] = await db.query(`
+  const { rows: recentBills } = await db.query(`
     SELECT b.amt_topay AS amount, b.due_date, b.c_id, cd.name AS customer_name
     FROM bills b
     JOIN customer_details cd ON b.c_id = cd.c_id
@@ -23,7 +23,7 @@ const getAdminDashboardData = asyncHandler(async (req, res) => {
     LIMIT 3
   `);
 
-  const [recentComplaints] = await db.query(`
+  const { rows: recentComplaints } = await db.query(`
     SELECT ia.message AS complaint, ia.status, ia.timestamp, cd.name AS customer_name
     FROM inbox_admin ia
     JOIN customer_details cd ON ia.c_id = cd.c_id
@@ -34,9 +34,9 @@ const getAdminDashboardData = asyncHandler(async (req, res) => {
   res.status(200).json({
     success: true,
     data: {
-      totalCustomers: users[0].totalCustomers,
-      unpaidBills: bills[0].unpaidBills,
-      activeComplaints: complaints[0].activeComplaints,
+      totalCustomers: users[0].totalcustomers,
+      unpaidBills: bills[0].unpaidbills,
+      activeComplaints: complaints[0].activecomplaints,
       recentBills: recentBills.map((b) => ({
         name: b.customer_name,
         amount: b.amount,
@@ -55,7 +55,7 @@ const getAdminDashboardData = asyncHandler(async (req, res) => {
 
 // Get all customers (no password hashes)
 const getAllUsers = asyncHandler(async (req, res) => {
-  const [users] = await db.query(`
+  const { rows: users } = await db.query(`
     SELECT u.c_id, u.name AS username, cd.name, cd.email
     FROM user_login u
     LEFT JOIN customer_details cd ON u.c_id = cd.c_id
@@ -66,7 +66,7 @@ const getAllUsers = asyncHandler(async (req, res) => {
 
 // Get Inbox Messages
 const getAdminMessages = asyncHandler(async (req, res) => {
-  const [messages] = await db.query(
+  const { rows: messages } = await db.query(
     "SELECT * FROM inbox_admin ORDER BY timestamp DESC"
   );
   res.status(200).json({ success: true, data: messages });
@@ -81,7 +81,7 @@ const updateMessageStatus = asyncHandler(async (req, res) => {
     return res.status(400).json({ success: false, message: "Invalid status" });
   }
 
-  await db.query("UPDATE inbox_admin SET status = ? WHERE id = ?", [status, id]);
+  await db.query("UPDATE inbox_admin SET status = $1 WHERE id = $2", [status, id]);
   res.status(200).json({ success: true, message: "Status updated" });
 });
 
@@ -94,18 +94,21 @@ const replyToMessage = asyncHandler(async (req, res) => {
     return res.status(400).json({ success: false, message: "Reply cannot be empty" });
   }
 
-  const [messages] = await db.query("SELECT * FROM inbox_admin WHERE id = ?", [id]);
+  const { rows: messages } = await db.query(
+    "SELECT * FROM inbox_admin WHERE id = $1",
+    [id]
+  );
   if (messages.length === 0) {
     return res.status(404).json({ success: false, message: "Message not found" });
   }
 
   const original = messages[0];
   await db.query(
-    "INSERT INTO inbox_user (c_id, subject, message) VALUES (?, ?, ?)",
+    "INSERT INTO inbox_user (c_id, subject, message) VALUES ($1, $2, $3)",
     [original.c_id, `Re: ${original.subject || "your message"}`, reply]
   );
   await db.query(
-    "UPDATE inbox_admin SET replied = 1, status = 'resolved' WHERE id = ?",
+    "UPDATE inbox_admin SET replied = TRUE, status = 'resolved' WHERE id = $1",
     [id]
   );
 
@@ -122,8 +125,8 @@ const createBill = asyncHandler(async (req, res) => {
       .json({ success: false, message: "c_id, amount and due_date are required" });
   }
 
-  const [customer] = await db.query(
-    "SELECT c_id FROM user_login WHERE c_id = ?",
+  const { rows: customer } = await db.query(
+    "SELECT c_id FROM user_login WHERE c_id = $1",
     [c_id]
   );
   if (customer.length === 0) {
@@ -131,7 +134,7 @@ const createBill = asyncHandler(async (req, res) => {
   }
 
   await db.query(
-    "INSERT INTO bills (c_id, amt_topay, due_date, status) VALUES (?, ?, ?, 'unpaid')",
+    "INSERT INTO bills (c_id, amt_topay, due_date, status) VALUES ($1, $2, $3, 'unpaid')",
     [c_id, amount, due_date]
   );
 
@@ -141,29 +144,29 @@ const createBill = asyncHandler(async (req, res) => {
 // Delete User
 const deleteUser = asyncHandler(async (req, res) => {
   const { id } = req.params;
-  await db.query("DELETE FROM user_login WHERE c_id = ?", [id]);
+  await db.query("DELETE FROM user_login WHERE c_id = $1", [id]);
   res.status(200).json({ success: true, message: "User deleted successfully" });
 });
 
 // Admin Stats Dashboard
 const getAdminStats = asyncHandler(async (req, res) => {
-  const [[{ totalRevenue }]] = await db.query(
-    "SELECT SUM(bill_amt) AS totalRevenue FROM bills_paid"
+  const { rows: [{ totalrevenue }] } = await db.query(
+    "SELECT SUM(bill_amt) AS totalrevenue FROM bills_paid"
   );
 
-  const [[{ totalBills }]] = await db.query(
-    "SELECT COUNT(*) AS totalBills FROM bills"
+  const { rows: [{ totalbills }] } = await db.query(
+    "SELECT COUNT(*) AS totalbills FROM bills"
   );
 
-  const [[{ paidBills }]] = await db.query(
-    "SELECT COUNT(*) AS paidBills FROM bills WHERE status = 'paid'"
+  const { rows: [{ paidbills }] } = await db.query(
+    "SELECT COUNT(*) AS paidbills FROM bills WHERE status = 'paid'"
   );
 
-  const [[{ unpaidBills }]] = await db.query(
-    "SELECT COUNT(*) AS unpaidBills FROM bills WHERE status = 'unpaid'"
+  const { rows: [{ unpaidbills }] } = await db.query(
+    "SELECT COUNT(*) AS unpaidbills FROM bills WHERE status = 'unpaid'"
   );
 
-  const [topCustomers] = await db.query(`
+  const { rows: topCustomers } = await db.query(`
     SELECT name, SUM(bill_amt) AS total
     FROM bills_paid
     GROUP BY name
@@ -174,10 +177,10 @@ const getAdminStats = asyncHandler(async (req, res) => {
   res.status(200).json({
     success: true,
     data: {
-      totalRevenue,
-      totalBills,
-      paidBills,
-      unpaidBills,
+      totalRevenue: totalrevenue,
+      totalBills: totalbills,
+      paidBills: paidbills,
+      unpaidBills: unpaidbills,
       topCustomers,
     },
   });

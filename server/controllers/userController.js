@@ -5,8 +5,8 @@ const asyncHandler = require("express-async-handler");
 exports.getUserProfile = asyncHandler(async (req, res) => {
   const { id } = req.user;
 
-  const [rows] = await db.query(
-    "SELECT c_id AS id, name AS username FROM user_login WHERE c_id = ?",
+  const { rows } = await db.query(
+    "SELECT c_id AS id, name AS username FROM user_login WHERE c_id = $1",
     [id]
   );
 
@@ -36,8 +36,8 @@ exports.changePassword = asyncHandler(async (req, res) => {
       .json({ success: false, message: "New password must be at least 8 characters" });
   }
 
-  const [rows] = await db.query(
-    "SELECT password FROM user_login WHERE c_id = ?",
+  const { rows } = await db.query(
+    "SELECT password FROM user_login WHERE c_id = $1",
     [id]
   );
   if (!rows.length) {
@@ -52,7 +52,7 @@ exports.changePassword = asyncHandler(async (req, res) => {
   }
 
   const hash = await bcrypt.hash(newPassword, 10);
-  await db.query("UPDATE user_login SET password = ? WHERE c_id = ?", [hash, id]);
+  await db.query("UPDATE user_login SET password = $1 WHERE c_id = $2", [hash, id]);
 
   res.status(200).json({ success: true, message: "Password updated successfully" });
 });

@@ -7,8 +7,8 @@ const jwt = require("jsonwebtoken");
 const loginUser = asyncHandler(async (req, res) => {
   const { username, password } = req.body;
 
-  const [userRows] = await db.query(
-    "SELECT * FROM user_login WHERE name = ?",
+  const { rows: userRows } = await db.query(
+    "SELECT * FROM user_login WHERE name = $1",
     [username]
   );
 
@@ -36,8 +36,8 @@ const loginUser = asyncHandler(async (req, res) => {
 const adminLogin = asyncHandler(async (req, res) => {
   const { username, password } = req.body;
 
-  const [adminRows] = await db.query(
-    "SELECT * FROM admin_login WHERE name = ?",
+  const { rows: adminRows } = await db.query(
+    "SELECT * FROM admin_login WHERE name = $1",
     [username]
   );
 

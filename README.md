@@ -8,16 +8,16 @@ A full-stack web application for managing electricity billing — customers can 
 | -------- | ------------------------------------------------------------------- |
 | Frontend | Next.js 15 (App Router), React 19, TypeScript, Tailwind CSS, shadcn/ui |
 | Backend  | Node.js, Express 5                                                   |
-| Database | MySQL (`mysql2` connection pool)                                     |
+| Database | PostgreSQL (`pg` connection pool)                                    |
 | Auth     | JWT (Bearer tokens) with bcrypt password hashing                     |
 
 ## Architecture
 
 ```
-┌──────────────────┐        REST (JSON)        ┌──────────────────┐        ┌─────────┐
-│   Next.js client │  ───────────────────────▶ │   Express API    │ ─────▶ │  MySQL  │
-│   (port 3000)    │   Authorization: Bearer   │   (port 5000)    │  pool  │         │
-└──────────────────┘                           └──────────────────┘        └─────────┘
+┌──────────────────┐        REST (JSON)        ┌──────────────────┐        ┌────────────┐
+│   Next.js client │  ───────────────────────▶ │   Express API    │ ─────▶ │ PostgreSQL │
+│   (port 3000)    │   Authorization: Bearer   │   (port 5000)    │  pool  │            │
+└──────────────────┘                           └──────────────────┘        └────────────┘
 ```
 
 - **Role-based access** — separate customer and admin logins; admin-only routes are guarded by an `isAdmin` middleware that checks the JWT's `role` claim.
@@ -34,12 +34,12 @@ A full-stack web application for managing electricity billing — customers can 
 │   ├── components/          # Layouts, navigation, shadcn/ui primitives
 │   └── lib/api.js           # API base URL (NEXT_PUBLIC_API_URL)
 ├── server/                  # Express backend
-│   ├── config/db.js         # MySQL connection pool
+│   ├── config/db.js         # PostgreSQL connection pool
 │   ├── middleware/          # JWT verification + admin role check
 │   ├── controllers/         # Business logic
 │   ├── routes/              # API route definitions
-│   ├── database/schema.sql  # Tables + sample data
-│   └── scripts/             # Password seeding helper
+│   ├── database/schema.sql  # Table definitions
+│   └── scripts/             # Sample-data seeder (Delhi North District)
 └── package.json             # Root scripts to run both apps together
 ```
 
@@ -48,7 +48,7 @@ A full-stack web application for managing electricity billing — customers can 
 ### Prerequisites
 
 - Node.js 18+
-- MySQL 8
+- PostgreSQL 14+ (`brew install postgresql@18 && brew services start postgresql@18`)
 
 ### 1. Install dependencies
 
@@ -59,23 +59,24 @@ npm run install:all
 ### 2. Set up the database
 
 ```bash
-mysql -u root -p -e "CREATE DATABASE IF NOT EXISTS electricity"
-mysql -u root -p electricity < server/database/schema.sql
+createdb electricity
+psql -d electricity -f server/database/schema.sql
 ```
 
 ### 3. Configure the server
 
 ```bash
 cp server/.env.example server/.env
-# then edit server/.env with your MySQL credentials and a strong JWT_SECRET
+# then edit server/.env with your PostgreSQL user and a strong JWT_SECRET
+# (Homebrew Postgres: DB_USER is your macOS username, DB_PASSWORD stays empty)
 ```
 
-### 4. Seed login passwords
+### 4. Seed sample data
 
-Passwords are stored as bcrypt hashes. This sets every customer to `user123` and every admin to `admin123`:
+Populates ~100 customers across Delhi's North District (Model Town, Civil Lines, Burari, ...) with realistic bills, payment history, and complaints. Passwords are stored as bcrypt hashes — every customer gets `user123`, the admin gets `admin123`:
 
 ```bash
-cd server && npm run seed:passwords
+cd server && npm run seed
 ```
 
 ### 5. Run both apps
@@ -87,7 +88,7 @@ npm run dev
 - Client: http://localhost:3000
 - API: http://localhost:5000
 
-**Demo credentials** — customer: `john` / `user123` · admin: `admin` / `admin123`
+**Demo credentials** — admin: `admin` / `admin123` · customer: any seeded username / `user123` (the seeder prints one, e.g. `rajesh.sharma`)
 
 ## API Overview
 
@@ -120,7 +121,7 @@ npm run dev
 
 - Passwords hashed with **bcrypt** (never stored in plain text)
 - **JWT** tokens expire after 24 hours; admin routes verify the `role` claim
-- All SQL uses **parameterized queries** (`mysql2` placeholders)
+- All SQL uses **parameterized queries** (`pg` numbered placeholders)
 - Secrets live in `server/.env` (git-ignored); see `server/.env.example`
 
 ## Repository History

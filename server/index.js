@@ -4,8 +4,8 @@ const cors = require("cors");
 const db = require("./config/db");
 
 db.query("SELECT 1")
-  .then(() => console.log("✅ MySQL connected successfully"))
-  .catch(err => console.error("❌ MySQL connection failed:", err));
+  .then(() => console.log("✅ PostgreSQL connected successfully"))
+  .catch(err => console.error("❌ PostgreSQL connection failed:", err));
 
 const authRoutes = require("./routes/authRoutes");
 const inboxRoutes = require("./routes/inboxRoutes");
