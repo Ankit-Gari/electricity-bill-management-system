@@ -72,12 +72,12 @@ export default function CustomerDashboardPage() {
             <CardTitle>Recent Bills</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            {data.recentBills.map(bill => (
-              <div className="flex items-center justify-between" key={bill.c_id}>
+            {data.recentBills.map((bill, index) => (
+              <div className="flex items-center justify-between" key={index}>
                 <div>
                   <p className="text-sm font-medium">{bill.name}</p>
                   <p className="text-sm text-muted-foreground">
-                    ₹{bill.amount} - Due {bill.due_date}
+                    ₹{Number(bill.amount).toFixed(2)} - Due {new Date(bill.due_date).toLocaleDateString()}
                   </p>
                 </div>
                 <div className="font-medium">CID: {bill.c_id}</div>
