@@ -4,9 +4,10 @@ const {
   getUserBills,
   addBill,
   deleteBill,
-  getPaidBills, // ✅ add this
+  getPaidBills,
 } = require("../controllers/billController");
 const verifyToken = require("../middleware/authMiddleware");
+const db = require("../config/db");
 
 const router = express.Router();
 

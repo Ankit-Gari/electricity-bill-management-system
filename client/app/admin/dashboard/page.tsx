@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Users, FileText, AlertCircle } from "lucide-react"
+import { API_BASE_URL } from "@/lib/api"
 
 interface DashboardData {
   totalCustomers: number
@@ -26,9 +27,16 @@ export default function AdminDashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null)
 
   useEffect(() => {
-    fetch("http://localhost:5000/api/admin/dashboard") // adjust if needed
+    const token = localStorage.getItem("token")
+
+    fetch(`${API_BASE_URL}/api/admin/dashboard`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    })
       .then(res => res.json())
-      .then(setData)
+      .then(json => setData(json.data))
+      .catch(err => console.error("Error loading dashboard data:", err))
   }, [])
 
   if (!data) return <div className="p-4">Loading...</div>

@@ -17,7 +17,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 
-import { API_BASE_URL } from "@/lib/api"; // <-- Create this in client/lib/api.js
+import { API_BASE_URL } from "@/lib/api";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -28,31 +28,36 @@ export default function LoginPage() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-  
+    setError("");
+
     try {
-      const res = await fetch(`${API_BASE_URL}/login`, {
+      const endpoint =
+        role === "admin" ? "/api/auth/admin-login" : "/api/auth/login";
+
+      const res = await fetch(`${API_BASE_URL}${endpoint}`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ username, password, role }),
+        body: JSON.stringify({ username, password }),
       });
-  
+
       const data = await res.json();
-  
+
       if (!res.ok) {
         throw new Error(data.message || "Login failed");
       }
 
       localStorage.setItem("token", data.token);
+      localStorage.setItem("role", role);
+
       if (role === "admin") {
         router.push("/admin/dashboard");
       } else {
         router.push("/customer/dashboard");
       }
-  
     } catch (err: any) {
-      alert(err.message);
+      setError(err.message);
     }
   };
   

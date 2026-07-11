@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { FileText, AlertCircle } from "lucide-react"
+import { API_BASE_URL } from "@/lib/api"
 
 interface DashboardData {
   unpaidBills: number
@@ -27,7 +28,7 @@ export default function CustomerDashboardPage() {
   useEffect(() => {
     const token = localStorage.getItem("token");
   
-    fetch("http://localhost:5000/api/customer/dashboard", {
+    fetch(`${API_BASE_URL}/api/customer/dashboard`, {
       headers: {
         Authorization: `Bearer ${token}`,
       },

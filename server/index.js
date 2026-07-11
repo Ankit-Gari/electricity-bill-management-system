@@ -28,7 +28,6 @@ app.use("/api/user", userRoutes);
 app.use("/api/bills", billRoutes);
 app.use("/api/inbox", inboxRoutes);
 app.use("/api/customer", customerRoutes);
-app.use("/api", require("./routes/dashboardRoutes"));
 
 app.use((req, res) => {
   res.status(404).json({ success: false, message: "API route not found" });
